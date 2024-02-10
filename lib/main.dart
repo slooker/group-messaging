@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_sms/flutter_sms.dart';
-import 'package:sms_advanced/sms_advanced.dart';
 import 'package:permission_handler/permission_handler.dart';
+
+class Contact {
+  Contact({ required this.name, required this.phoneNumber });
+  String name;
+  String phoneNumber;
+}
 
 void _sendFlutterSMSMessage() async {
   await Permission.sms.request();
@@ -17,24 +22,14 @@ void _sendFlutterSMSMessage() async {
   print(result);
 }
 
-void _sendSMSAdvancedMessage() async {
-  await Permission.sms.request();
-  print("Starting SMS Advanced send");
-  SmsSender sender = new SmsSender();
-  sender.sendSms(new SmsMessage("7029833335", 'Hello flutter world (sms advanced)!'));
-  sender.sendSms(new SmsMessage("7025094335", 'Hello flutter world (sms advanced)!'));
-  print("Done sending SMS");
-}
-
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // _sendSMSAdvancedMessage();
   _sendFlutterSMSMessage();
-  runApp(const MyApp());
+  runApp(const GroupMessageApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class GroupMessageApp extends StatelessWidget {
+  const GroupMessageApp({super.key});
 
   // This widget is the root of your application.
   @override
@@ -60,13 +55,13 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const GroupList(title: 'Group List'),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+class GroupList extends StatefulWidget {
+  const GroupList({super.key, required this.title});
 
   // This widget is the home page of your application. It is stateful, meaning
   // that it has a State object (defined below) that contains fields that affect
@@ -80,22 +75,73 @@ class MyHomePage extends StatefulWidget {
   final String title;
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<GroupList> createState() => _GroupListState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _GroupListState extends State<GroupList> {
+  final List<Contact> _contacts = <Contact>[];
+  final TextEditingController _nameFieldController = TextEditingController();
+  final TextEditingController _phoneNumberFieldController = TextEditingController();
 
-  void _incrementCounter() {
+  void _addContact(String name, String phoneNumber) {
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      _contacts.add(Contact(name: name, phoneNumber: phoneNumber));
     });
+    _nameFieldController.clear();
   }
+
+  Future<void> _displayAddContactDialog() {
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Add a contact'),
+          content: Container(
+            child: Column(
+              children: [
+                TextField(
+                  controller: _nameFieldController,
+                  decoration: const InputDecoration(hintText: 'Name'),
+                  autofocus: true,
+                ),
+                TextField(
+                  controller: _phoneNumberFieldController,
+                  decoration: const InputDecoration(hintText: 'Phone Number'),
+                  autofocus: true,
+                ),
+              ]
+            )
+          ),
+          actions: <Widget>[
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _addContact(_nameFieldController.text, _phoneNumberFieldController.text);
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -133,20 +179,12 @@ class _MyHomePageState extends State<MyHomePage> {
           // action in the IDE, or press "p" in the console), to see the
           // wireframe for each widget.
           mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+          children: <Widget>[],
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
+        onPressed: () => _displayAddContactDialog(),
+        tooltip: 'Add Contact',
         child: const Icon(Icons.add),
       ), // This trailing comma makes auto-formatting nicer for build methods.
     );
