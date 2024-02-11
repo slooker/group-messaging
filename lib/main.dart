@@ -8,23 +8,46 @@ class Contact {
   String phoneNumber;
 }
 
-void _sendFlutterSMSMessage() async {
-  await Permission.sms.request();
-  print("Starting Flutter SMS send SMS");
-  String message = "test flutter message";
-  List<String> recipients = ["7029833335", "7025094335"];
-  String result = await sendSMS(message: message, recipients: recipients, sendDirect: true)
-      .catchError((onError) {
-    print(onError);
-    return onError;
-  });
-  print("Done sending SMS");
-  print(result);
+class ContactItem extends StatelessWidget {
+  ContactItem({required this.contact, required this.removeContact}) : super(key: ObjectKey(contact));
+
+  final Contact contact;
+  final Function removeContact;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      onTap: () {},
+      title: Row(children: <Widget>[
+        Expanded(
+          child: Text(contact.name),
+          // child: Column(
+          //   children: [
+          //     Text(contact.name),
+          //     Text(contact.phoneNumber)
+          //   ]
+          // )
+        ),
+        IconButton(
+          iconSize: 30,
+          icon: const Icon(
+            Icons.delete,
+            color: Colors.red,
+          ),
+          alignment: Alignment.centerRight,
+          onPressed: () {
+            removeContact(contact);
+          },
+        ),
+      ]),
+    );
+  }
 }
+
+
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  _sendFlutterSMSMessage();
   runApp(const GroupMessageApp());
 }
 
@@ -79,18 +102,99 @@ class GroupList extends StatefulWidget {
 }
 
 class _GroupListState extends State<GroupList> {
-  final List<Contact> _contacts = <Contact>[];
+  final List<Contact> _contacts = <Contact>[
+    Contact(name: 'Tisha', phoneNumber: '7025094335'),
+    Contact(name: 'Maria', phoneNumber: '4233585595'),
+    Contact(name: 'Ray', phoneNumber: '4238337481'),
+  ];
   final TextEditingController _nameFieldController = TextEditingController();
   final TextEditingController _phoneNumberFieldController = TextEditingController();
+  final TextEditingController _sendGroupMessageFieldController = TextEditingController();
+
+  void _deleteContact(Contact contact) {
+    setState(() {
+      _contacts.removeWhere((element) => element.name == contact.name);
+    });
+  }
+
+  void _sendFlutterSMSMessage(String phoneNumber, String message) async {
+    await Permission.sms.request();
+    List<String> recipients = [phoneNumber];
+    String result = await sendSMS(message: message, recipients: recipients, sendDirect: true)
+        .catchError((onError) {
+      print(onError);
+      return onError;
+    });
+    print("Done sending SMS");
+    print(result);
+  }
+
+  void _sendGroupMessage(String message) async {
+    for (var contact in _contacts) {
+      print('Sending message (${message}) for ${contact.phoneNumber}');
+      _sendFlutterSMSMessage(contact.phoneNumber, message);
+    }
+    _sendGroupMessageFieldController.clear();
+  }
 
   void _addContact(String name, String phoneNumber) {
     setState(() {
       _contacts.add(Contact(name: name, phoneNumber: phoneNumber));
     });
     _nameFieldController.clear();
+    _phoneNumberFieldController.clear();
+  }
+
+  Future<void> _displaySendMessageDialog() {
+    print("clicked send message");
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Send group message'),
+          content: Container(
+              child: Column(
+                  children: [
+                    TextField(
+                      controller: _sendGroupMessageFieldController,
+                      decoration: const InputDecoration(hintText: 'Group Message'),
+                      autofocus: true,
+                    ),
+                  ]
+              )
+          ),
+          actions: <Widget>[
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _sendGroupMessage(_sendGroupMessageFieldController.text);
+              },
+              child: const Text('Send'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _displayAddContactDialog() {
+    print("clicked add contact");
     return showDialog<void>(
       context: context,
       builder: (BuildContext context) {
@@ -161,32 +265,41 @@ class _GroupListState extends State<GroupList> {
         // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[],
-        ),
+      body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        children: [
+          Column(
+            children: [
+              SingleChildScrollView(
+                  physics: const ScrollPhysics(),
+                  child: Column(
+                    children: [
+                      for (var contact in _contacts) ContactItem(contact: contact, removeContact: _deleteContact),
+                    ]
+                  )
+              ),
+            ]
+          )
+        ]
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _displayAddContactDialog(),
-        tooltip: 'Add Contact',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+      bottomNavigationBar: Row(
+        children: [
+          Padding(
+            padding: EdgeInsets.all(8.0),
+            child: ElevatedButton(
+              onPressed: () => _displaySendMessageDialog(),
+              child: const Icon(Icons.message),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.all(8.0),
+            child: ElevatedButton(
+              onPressed: () => _displayAddContactDialog(),
+              child: const Icon(Icons.add),
+            ),
+          ),
+        ]
+      ),
     );
   }
 }
