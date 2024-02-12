@@ -1,13 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_sms/flutter_sms.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:convert';
+
+// void main() {
+//   String rawJson = '{"name":"Mary","phoneNumber": "7029833335"}';
+//
+//   Map<String, dynamic> map = jsonDecode(rawJson); // import 'dart:convert';
+//
+//   String name = map['name'];
+//   String phoneNumber = map['phoneNumber'];
+//
+//   Contact person = Contact(name: name, phoneNumber: phoneNumber);
+//   print("Person name: $name, Phone number: $phoneNumber");
+// }
+
+bool dbIsInitialized = false;
 
 class Contact {
-  Contact({ required this.name, required this.phoneNumber });
   String name;
   String phoneNumber;
+  Contact({ required this.name, required this.phoneNumber });
+
+  // named constructor
+  Contact.fromJson(Map<String, dynamic> json)
+      : name = json['name'],
+        phoneNumber = json['phoneNumber'];
+
+  // method
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'phoneNumber': phoneNumber,
+    };
+  }
+
 }
 
+final storage = FlutterSecureStorage();
 class ContactItem extends StatelessWidget {
   ContactItem({required this.contact, required this.removeContact}) : super(key: ObjectKey(contact));
 
@@ -45,7 +76,6 @@ class ContactItem extends StatelessWidget {
 }
 
 
-
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const GroupMessageApp());
@@ -60,21 +90,6 @@ class GroupMessageApp extends StatelessWidget {
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a blue toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
@@ -85,16 +100,6 @@ class GroupMessageApp extends StatelessWidget {
 
 class GroupList extends StatefulWidget {
   const GroupList({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
   final String title;
 
   @override
@@ -102,16 +107,26 @@ class GroupList extends StatefulWidget {
 }
 
 class _GroupListState extends State<GroupList> {
-  final List<Contact> _contacts = <Contact>[
-    Contact(name: 'Tisha', phoneNumber: '7025094335'),
-    Contact(name: 'Maria', phoneNumber: '4233585595'),
-    Contact(name: 'Ray', phoneNumber: '4238337481'),
-  ];
+  final List<Contact> _contacts = <Contact>[];
   final TextEditingController _nameFieldController = TextEditingController();
   final TextEditingController _phoneNumberFieldController = TextEditingController();
   final TextEditingController _sendGroupMessageFieldController = TextEditingController();
 
-  void _deleteContact(Contact contact) {
+  void _readAllContacts() async {
+    Map<String, String> allValues = await storage.readAll();
+
+    for (var v in allValues.values) {
+      print(v);
+      Map<String, dynamic> jsonString = jsonDecode(v);
+      final Contact contact = Contact(name: jsonString['name'], phoneNumber: jsonString['phoneNumber']);
+      _contacts.add(contact);
+    }
+  }
+
+  void _deleteContact(Contact contact) async {
+    var key = '${contact.name}${contact.phoneNumber}';
+    await storage.delete(key: key);
+
     setState(() {
       _contacts.removeWhere((element) => element.name == contact.name);
     });
@@ -131,15 +146,18 @@ class _GroupListState extends State<GroupList> {
 
   void _sendGroupMessage(String message) async {
     for (var contact in _contacts) {
-      print('Sending message (${message}) for ${contact.phoneNumber}');
+      print('Sending message ($message) for ${contact.phoneNumber}');
       _sendFlutterSMSMessage(contact.phoneNumber, message);
     }
     _sendGroupMessageFieldController.clear();
   }
 
-  void _addContact(String name, String phoneNumber) {
+  void _addContact(String name, String phoneNumber) async {
+    Contact contact = Contact(name: name, phoneNumber: phoneNumber);
+    // Write value
+    await storage.write(key: '$name$phoneNumber', value: jsonEncode(contact));
     setState(() {
-      _contacts.add(Contact(name: name, phoneNumber: phoneNumber));
+      _contacts.add(contact);
     });
     _nameFieldController.clear();
     _phoneNumberFieldController.clear();
@@ -152,16 +170,14 @@ class _GroupListState extends State<GroupList> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Send group message'),
-          content: Container(
-              child: Column(
-                  children: [
-                    TextField(
-                      controller: _sendGroupMessageFieldController,
-                      decoration: const InputDecoration(hintText: 'Group Message'),
-                      autofocus: true,
-                    ),
-                  ]
-              )
+          content: Column(
+            children: [
+              TextField(
+                controller: _sendGroupMessageFieldController,
+                decoration: const InputDecoration(hintText: 'Group Message'),
+                autofocus: true,
+              ),
+            ]
           ),
           actions: <Widget>[
             OutlinedButton(
@@ -200,21 +216,19 @@ class _GroupListState extends State<GroupList> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Add a contact'),
-          content: Container(
-            child: Column(
-              children: [
-                TextField(
-                  controller: _nameFieldController,
-                  decoration: const InputDecoration(hintText: 'Name'),
-                  autofocus: true,
-                ),
-                TextField(
-                  controller: _phoneNumberFieldController,
-                  decoration: const InputDecoration(hintText: 'Phone Number'),
-                  autofocus: true,
-                ),
-              ]
-            )
+          content: Column(
+            children: [
+              TextField(
+                controller: _nameFieldController,
+                decoration: const InputDecoration(hintText: 'Name'),
+                autofocus: true,
+              ),
+              TextField(
+                controller: _phoneNumberFieldController,
+                decoration: const InputDecoration(hintText: 'Phone Number'),
+                autofocus: true,
+              ),
+            ]
           ),
           actions: <Widget>[
             OutlinedButton(
@@ -249,6 +263,10 @@ class _GroupListState extends State<GroupList> {
 
   @override
   Widget build(BuildContext context) {
+    if (!dbIsInitialized) {
+      _readAllContacts();
+      dbIsInitialized = true;
+    }
     // This method is rerun every time setState is called, for instance as done
     // by the _incrementCounter method above.
     //
@@ -285,14 +303,14 @@ class _GroupListState extends State<GroupList> {
       bottomNavigationBar: Row(
         children: [
           Padding(
-            padding: EdgeInsets.all(8.0),
+            padding: const EdgeInsets.all(8.0),
             child: ElevatedButton(
               onPressed: () => _displaySendMessageDialog(),
               child: const Icon(Icons.message),
             ),
           ),
           Padding(
-            padding: EdgeInsets.all(8.0),
+            padding: const EdgeInsets.all(8.0),
             child: ElevatedButton(
               onPressed: () => _displayAddContactDialog(),
               child: const Icon(Icons.add),
